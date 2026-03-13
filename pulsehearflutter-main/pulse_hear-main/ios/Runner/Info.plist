@@ -49,5 +49,13 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+    <!-- Bluetooth & Microphone Permissions -->
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>نحتاج Bluetooth للاتصال بالسوار</string>
+    <key>NSBluetoothPeripheralUsageDescription</key>
+    <string>نحتاج Bluetooth للاتصال بالسوار</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>نحتاج الميكروفون لتصنيف الأصوات</string>
+
 </dict>
 </plist>
