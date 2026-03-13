@@ -2,10 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:pulse_hear/views/bluetooth-asayel/bluetooth_search_screen.dart';
 import 'package:pulse_hear/views/soundlibrary-asayel/sound_library_screen.dart';
+import 'package:pulse_hear/services/ble_audio_service.dart';
 
-class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
+class DashboardScreen extends StatefulWidget {
+  final BleAudioService service;
+  const DashboardScreen({Key? key, required this.service}) : super(key: key);
 
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -48,9 +55,7 @@ class DashboardScreen extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(height: 25),
-
           // 2. Connection Status Card
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 19),
@@ -87,7 +92,7 @@ class DashboardScreen extends StatelessWidget {
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
                             border:
-                            Border.all(color: Colors.white70, width: 1.5),
+                                Border.all(color: Colors.white70, width: 1.5),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Icon(Icons.power_settings_new,
@@ -100,7 +105,9 @@ class DashboardScreen extends StatelessWidget {
                       child: Column(
                         children: [
                           Text(
-                            'Connected',
+                            widget.service.isConnected
+                                ? 'Connected (${widget.service.deviceName})'
+                                : 'Not Connected',
                             style: GoogleFonts.poppins(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
@@ -111,31 +118,26 @@ class DashboardScreen extends StatelessWidget {
                             'Your Wristband is ready to alert you',
                             textAlign: TextAlign.center,
                             style:
-                            TextStyle(color: Colors.white70, fontSize: 11),
+                                TextStyle(color: Colors.white70, fontSize: 11),
                           ),
                           const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white24),
+                          ElevatedButton(
+                            onPressed: () {
+                              if (!widget.service.isConnected) {
+                                widget.service.connectToESP32('XIAO_ESP32S3');
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white.withOpacity(0.15),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: const BorderSide(color: Colors.white24),
+                              ),
                             ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text('Battery level ',
-                                    style: TextStyle(
-                                        color: Colors.white, fontSize: 10)),
-                                Text('100%',
-                                    style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold)),
-                                SizedBox(width: 8),
-                                Icon(Icons.battery_full,
-                                    color: Colors.greenAccent, size: 18),
-                              ],
+                            child: Text(
+                              widget.service.isConnected ? 'Connected' : 'Connect Wristband',
+                              style: const TextStyle(fontSize: 12),
                             ),
                           ),
                         ],
@@ -146,9 +148,7 @@ class DashboardScreen extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(height: 20),
-
           // 3. Features Grid
           Expanded(
             child: Padding(
@@ -162,34 +162,32 @@ class DashboardScreen extends StatelessWidget {
                   _buildIconCard(
                     'Sound Library',
                     'assets/images/sound_library.png',
-                        () => Navigator.pushNamed(context, '/sounds'),
+                    () => Navigator.pushNamed(context, '/sounds'),
                   ),
                   _buildIconCard(
                     'Keywords',
                     'assets/images/keyword-2 1.png',
-                        () =>
-                        Navigator.pushNamed(context, '/keywords'), // ✅ FIXED
+                    () => Navigator.pushNamed(context, '/keywords'),
                   ),
                   _buildIconCard(
                     'Speech-To-Text',
                     'assets/images/speech_to_text.png',
-                        () => print("Navigate to Speech-To-Text"),
+                    () => print("Navigate to Speech-To-Text"),
                   ),
                   _buildIconCard(
                     'Text-To-Speech',
                     'assets/images/text_to_speech.png',
-                        () => print("Navigate to Text-To-Speech"),
+                    () => print("Navigate to Text-To-Speech"),
                   ),
                   _buildIconCard(
                     'Modes',
                     'assets/images/modes.png',
-                        () => print("Navigate to Modes"),
+                    () => print("Navigate to Modes"),
                   ),
                 ],
               ),
             ),
           ),
-
           // 4. Nav Bar
           Container(
             height: 75,
@@ -203,7 +201,7 @@ class DashboardScreen extends StatelessWidget {
               children: [
                 IconButton(
                   icon:
-                  const Icon(Icons.home, color: Colors.white, size: 28),
+                      const Icon(Icons.home, color: Colors.white, size: 28),
                   onPressed: () => print("Home tapped"),
                 ),
                 IconButton(
@@ -263,39 +261,4 @@ class DashboardScreen extends StatelessWidget {
       ),
     );
   }
-
-  class DashboardScreen extends StatefulWidget {
-  final BleAudioService service;
-
-  const DashboardScreen({Key? key, required this.service}) : super(key: key);
-
-  @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
-  }
-
-  class _DashboardScreenState extends State<DashboardScreen> {
-  @override
-  Widget build(BuildContext context) {
-  return Scaffold(
-  // شاشة Dashboard الحالية + ...
-  body: Column(
-  children: [
-  // زر البلوتوث المحدّث
-  ElevatedButton(
-  onPressed: () {
-  widget.service.connectToESP32('XIAO_ESP32S3'); // اختبار
-  widget.service.onDeviceSignal('adhan_detected'); // اختبار YAMNet
-  },
-  child: Text(widget.service.isConnected
-  ? 'متصل (${widget.service.deviceName})'
-      : 'ربط السوار'),
-  ),
-
-  // باقي الشاشة الحالية...
-  ],
-  ),
-  );
-  }
-  }
-
 }
