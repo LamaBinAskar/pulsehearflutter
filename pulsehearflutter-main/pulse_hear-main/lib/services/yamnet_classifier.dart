@@ -8,7 +8,40 @@ class YamnetClassifier {
   static const _frameLength = 15600; // 0.96 ثانية
 
   late final Interpreter _interpreter;
-  final List<String> labels = List.filled(521, 'unknown'); // 521 label
+  
+  // YAMNet labels - أهم 521 تصنيف من AudioSet
+  // نستخدم فقط التصنيفات البشرية المهمة
+  final Map<int, String> importantLabels = {
+    0: 'SPEECH',
+    1: 'MALE_SPEECH',
+    2: 'FEMALE_SPEECH',
+    3: 'CHILD_SPEECH',
+    4: 'CONVERSATION',
+    5: 'NARRATION',
+    6: 'BABBLING',
+    7: 'SHOUT',
+    8: 'SCREAM',
+    9: 'YELL',
+    10: 'LAUGHTER',
+    11: 'CRY',
+    12: 'BABY_CRY',
+    13: 'WHIMPER',
+    14: 'MUSIC',
+    15: 'MUSICAL_INSTRUMENT',
+    23: 'DOG',
+    24: 'BARK',
+    38: 'SIREN',
+    39: 'CIVIL_DEFENSE_SIREN',
+    40: 'AMBULANCE',
+    41: 'POLICE_CAR',
+    65: 'ALARM',
+    66: 'SMOKE_ALARM',
+    67: 'FIRE_ALARM',
+    85: 'DOORBELL',
+    86: 'KNOCK',
+    108: 'TELEPHONE',
+    109: 'TELEPHONE_BELL_RINGING',
+  };
 
   Future<void> init() async {
     // تحميل المودل
@@ -26,9 +59,7 @@ class YamnetClassifier {
       ..addDelegate(gpuDelegateV2);
 
     _interpreter = await Interpreter.fromAsset(_modelPath, options: options);
-
-    // تحميل الـ labels (إذا عندك ملف labels_yamnet.txt)
-    // readLabels('labels_yamnet.txt');
+    print('[YAMNet] Model loaded successfully');
   }
 
   // تجهيز الـ 15600 عينة من buffer الصوت
@@ -50,20 +81,21 @@ class YamnetClassifier {
   }
 
   // تصنيف إطار واحد
-  Map<String, double> classify(Uint8List pcmBytes) {
-    final input = prepareInput(pcmBytes); // 1D Float32List بحجم 15600
+  Map<String, dynamic> classify(Uint8List pcmBytes) {
+    final input = prepareInput(pcmBytes);
+    
+    // 1D Float32List بحجم 15600
     final inputShape = [_frameLength];
-
     final inputs = [input.reshape(inputShape)];
-
-    final outputs = List.filled(1, 0.0).reshape([1, 521]);
+    
+    // Output: [1, 521] scores
+    final outputs = List.filled(521, 0.0).reshape([1, 521]);
 
     _interpreter.run(inputs, outputs);
 
     // البحث عن أعلى score
     double maxScore = 0;
     int maxIndex = 0;
-
     for (int i = 0; i < 521; i++) {
       final score = outputs[0][i].toDouble();
       if (score > maxScore) {
@@ -72,24 +104,15 @@ class YamnetClassifier {
       }
     }
 
-    final label = labels[maxIndex];
+    // الحصول على التصنيف
+    final label = importantLabels[maxIndex] ?? 'BACKGROUND_$maxIndex';
     final confidence = maxScore;
 
     return {
       'label': label,
       'confidence': confidence,
+      'index': maxIndex,
     };
-  }
-
-  // تحميل الـ labels (إذا تبي)
-  Future<void> readLabels(String fileName) async {
-    final raw = await rootBundle.loadString('assets/labels/$fileName');
-    final lines = raw.split('\n');
-    for (int i = 0; i < lines.length; i++) {
-      if (i < 521) {
-        labels[i] = lines[i].trim();
-      }
-    }
   }
 
   void dispose() {
