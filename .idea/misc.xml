@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+<<<<<<< HEAD
   <component name="DeviceStreaming">
     <option name="deviceSelectionList">
       <list>
@@ -1025,5 +1026,9 @@
         </PersistentDeviceSelectionData>
       </list>
     </option>
+=======
+  <component name="ProjectRootManager">
+    <output url="file://$PROJECT_DIR$/out" />
+>>>>>>> 9170f46447703d904215bd6ee43077e67c2ab7b4
   </component>
 </project>
