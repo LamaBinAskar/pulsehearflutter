@@ -1,9 +1,7 @@
 // ble_audio_service.dart
-// PulseHear v28 - BLE + YAMNet + AraSpot Audio Service
-// يربط BLE مع YAMNet ثم AraSpot للكلمات المفتاحية
-// عند استقبال BG من ESP32 → يسجّل صوت → يصنّف YAMNet → إذا بشري → AraSpot
-
+// PulseHear v29 - iOS Compatible
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -24,11 +22,10 @@ class BleAudioService extends ChangeNotifier {
   String lastYamnetLabel = '';
   String lastRecognizedText = '';
   bool _speechInitialized = false;
-  
-  // قائمة الكلمات المفتاحية للبحث عنها
+
   List<String> keywords = [
     'ساعدني',
-    'نجدة', 
+    'نجدة',
     'حريق',
     'ماء',
     'خطر',
@@ -44,37 +41,65 @@ class BleAudioService extends ChangeNotifier {
     await _yamnet.init();
     await _initNotifications();
     await _initSpeechToText();
-    // ربط callback BLE
     bleService.onSignalReceived = _handleBleSignal;
-    print('[BleAudioService] Initialized');
+    debugPrint('[BleAudioService] Initialized');
   }
 
   Future<void> _initNotifications() async {
+    // Android settings
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
-    const InitializationSettings settings =
-        InitializationSettings(android: androidSettings);
-    await _notifications.initialize(settings);
+
+    // iOS settings
+    const DarwinInitializationSettings iosSettings =
+        DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
+
+    const InitializationSettings settings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
+      macOS: iosSettings,
+    );
+
+    await _notifications.initialize(
+      settings,
+      onDidReceiveNotificationResponse: (details) {
+        debugPrint('[Notification] Tapped: ${details.payload}');
+      },
+    );
+
+    // طلب إذن الإشعارات على iOS
+    if (Platform.isIOS) {
+      await _notifications
+          .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin>()
+          ?.requestPermissions(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
+    }
   }
 
   Future<void> _initSpeechToText() async {
     try {
       _speechInitialized = await _speechToText.initialize(
-        onStatus: (status) => print('[SpeechToText] Status: $status'),
-        onError: (error) => print('[SpeechToText] Error: $error'),
+        onStatus: (status) => debugPrint('[SpeechToText] Status: $status'),
+        onError: (error) => debugPrint('[SpeechToText] Error: $error'),
       );
       if (_speechInitialized) {
-        print('[SpeechToText] Initialized successfully');
+        debugPrint('[SpeechToText] Initialized successfully');
       }
     } catch (e) {
-      print('[SpeechToText] Init error: $e');
+      debugPrint('[SpeechToText] Init error: $e');
     }
   }
 
-  // معالجة إشارات BLE
   Future<void> _handleBleSignal(String signal) async {
-    print('[BleAudioService] Signal: $signal');
-
+    debugPrint('[BleAudioService] Signal: $signal');
     switch (signal.toUpperCase()) {
       case 'FIRE':
         await _sendNotification(
@@ -83,7 +108,6 @@ class BleAudioService extends ChangeNotifier {
           id: 1,
         );
         break;
-
       case 'BABY':
         await _sendNotification(
           title: '👶 بكاء طفل!',
@@ -91,7 +115,6 @@ class BleAudioService extends ChangeNotifier {
           id: 2,
         );
         break;
-
       case 'ATHAN':
         await _sendNotification(
           title: '🕌 أذان!',
@@ -99,15 +122,11 @@ class BleAudioService extends ChangeNotifier {
           id: 3,
         );
         break;
-
       case 'BG':
       case 'BACKGROUND':
-        // يشغّل YAMNet على الهاتف
         await _analyzeWithYamnet();
         break;
-
       default:
-        // keyword مخصص
         await _sendNotification(
           title: '🔔 صوت مخصص!',
           body: 'تم اكتشاف: $signal',
@@ -116,19 +135,15 @@ class BleAudioService extends ChangeNotifier {
     }
   }
 
-  // تحليل الصوت باستخدام YAMNet
   Future<void> _analyzeWithYamnet() async {
     if (isListening) return;
     if (!await _recorder.hasPermission()) {
-      print('[BleAudioService] No mic permission');
+      debugPrint('[BleAudioService] No mic permission');
       return;
     }
-
     isListening = true;
     notifyListeners();
-
     try {
-      // تسجيل 0.975 ثانية (15600 عينة @ 16kHz)
       final stream = await _recorder.startStream(
         const RecordConfig(
           encoder: AudioEncoder.pcm16bits,
@@ -136,21 +151,17 @@ class BleAudioService extends ChangeNotifier {
           numChannels: 1,
         ),
       );
-
       final List<int> audioBytes = [];
       StreamSubscription? sub;
-
       sub = stream.listen((chunk) {
         audioBytes.addAll(chunk);
         if (audioBytes.length >= 31200) {
-          // 15600 samples * 2 bytes
           sub?.cancel();
           _recorder.stop();
-          _classifyAudio(Uint8List.fromList(audioBytes.take(31200).toList()));
+          _classifyAudio(
+              Uint8List.fromList(audioBytes.take(31200).toList()));
         }
       });
-
-      // timeout 2 ثانية
       Future.delayed(const Duration(seconds: 2), () {
         if (isListening) {
           sub?.cancel();
@@ -161,109 +172,79 @@ class BleAudioService extends ChangeNotifier {
         }
       });
     } catch (e) {
-      print('[BleAudioService] Record error: $e');
+      debugPrint('[BleAudioService] Record error: $e');
       isListening = false;
       notifyListeners();
     }
   }
 
-  // تصنيف الصوت - يحدد: صوت بشري أو طبيعي
   void _classifyAudio(Uint8List audioBytes) async {
     try {
       final result = _yamnet.classify(audioBytes);
       final label = result['label'] as String;
-      final confidence = result['confidence'] as double;
-
-      print('[YAMNet] $label ($confidence)');
+      final confidence = (result['confidence'] as num).toDouble();
+      debugPrint('[YAMNet] $label ($confidence)');
       lastYamnetLabel = label;
       bleService.lastDetectedLabel = label;
-      bleService.notifyListeners();
       notifyListeners();
-
-      // إذا كان الصوت بشري → روح لـ AraSpot
       if (confidence > 0.4 && _isHumanSound(label)) {
-        print('[YAMNet] Detected human sound: $label - triggering speech recognition');
         await _recognizeSpeechForKeywords();
       } else if (confidence > 0.4 && label.isNotEmpty) {
-        // صوت طبيعي أو بيئي
         _sendYamnetNotification(label, confidence);
       }
     } catch (e) {
-      print('[BleAudioService] Classify error: $e');
+      debugPrint('[BleAudioService] Classify error: $e');
     } finally {
       isListening = false;
       notifyListeners();
     }
   }
 
-  // تحقق: هل هو صوت بشري؟
   bool _isHumanSound(String label) {
     final humanLabels = [
-      'SPEECH',
-      'CONVERSATION', 
-      'NARRATION',
-      'SPEECH_SYNTHESIZER',
-      'CHILD_SPEECH',
-      'MALE_SPEECH',
-      'FEMALE_SPEECH',
-      'VOCAL',
-      'VOICE',
-      'SHOUT',
-      'SCREAM',
-      'CRY',
-      'YELL',
+      'SPEECH', 'CONVERSATION', 'NARRATION', 'SPEECH_SYNTHESIZER',
+      'CHILD_SPEECH', 'MALE_SPEECH', 'FEMALE_SPEECH',
+      'VOCAL', 'VOICE', 'SHOUT', 'SCREAM', 'CRY', 'YELL',
     ];
     return humanLabels.any((h) => label.toUpperCase().contains(h));
   }
 
-  // AraSpot: تحويل الصوت إلى نص وبحث عن كلمات مفتاحية
   Future<void> _recognizeSpeechForKeywords() async {
-    if (!_speechInitialized) {
-      print('[SpeechToText] Not initialized');
-      return;
-    }
-
+    if (!_speechInitialized) return;
     try {
-      // استخدام التعرف على الكلام (يدعم العربية)
       await _speechToText.listen(
         onResult: (result) {
           lastRecognizedText = result.recognizedWords;
-          print('[SpeechToText] Recognized: $lastRecognizedText');
-          
-          // البحث عن كلمات مفتاحية
+          debugPrint('[SpeechToText] Recognized: $lastRecognizedText');
           _checkForKeywords(lastRecognizedText);
         },
-        localeId: 'ar_SA', // العربية السعودية
+        localeId: 'ar_SA',
         listenFor: const Duration(seconds: 3),
         pauseFor: const Duration(seconds: 2),
       );
-
-      // إيقاف بعد 5 ثواني
       Future.delayed(const Duration(seconds: 5), () {
         if (_speechToText.isListening) {
           _speechToText.stop();
         }
       });
     } catch (e) {
-      print('[SpeechToText] Recognition error: $e');
+      debugPrint('[SpeechToText] Recognition error: $e');
     }
   }
 
-  // تحقق من وجود كلمات مفتاحية في النص المعترف به
   void _checkForKeywords(String text) {
     final lowerText = text.toLowerCase();
-    
     for (String keyword in keywords) {
       if (lowerText.contains(keyword.toLowerCase())) {
-        print('[Keywords] Match found: $keyword');
+        debugPrint('[Keywords] Match found: $keyword');
         _sendKeywordNotification(keyword, text);
-        break; // أول تطابق فقط
+        break;
       }
     }
   }
 
-  // إشعار عند اكتشاف كلمة مفتاحية
-  Future<void> _sendKeywordNotification(String keyword, String fullText) async {
+  Future<void> _sendKeywordNotification(
+      String keyword, String fullText) async {
     await _sendNotification(
       title: '🚨 كلمة مفتاحية: $keyword',
       body: 'تم اكتشاف: "$fullText"',
@@ -271,8 +252,8 @@ class BleAudioService extends ChangeNotifier {
     );
   }
 
-  // إشعار بناءً على نتيجة YAMNet (أصوات طبيعية/بيئية)
-  Future<void> _sendYamnetNotification(String label, double confidence) async {
+  Future<void> _sendYamnetNotification(
+      String label, double confidence) async {
     final Map<String, Map<String, String>> labels = {
       'SIREN': {'title': '🚨 صفارة!', 'body': 'سمعت سيارة طوارئ أو إسعاف'},
       'ALARM': {'title': '⏰ جرس تنبيه!', 'body': 'تم اكتشاف جرس تنبيه'},
@@ -280,7 +261,6 @@ class BleAudioService extends ChangeNotifier {
       'DOORBELL': {'title': '🔔 جرس الباب!', 'body': 'شخص يدق الباب'},
       'MUSIC': {'title': '🎵 موسيقى', 'body': 'تم كشف موسيقى بالقرب'},
     };
-
     final info = labels[label.toUpperCase()];
     if (info != null) {
       await _sendNotification(
@@ -291,7 +271,6 @@ class BleAudioService extends ChangeNotifier {
     }
   }
 
-  // إرسال إشعار عام
   Future<void> _sendNotification({
     required String title,
     required String body,
@@ -307,22 +286,29 @@ class BleAudioService extends ChangeNotifier {
       enableVibration: true,
     );
 
-    const NotificationDetails details =
-        NotificationDetails(android: androidDetails);
+    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const NotificationDetails details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+      macOS: iosDetails,
+    );
 
     await _notifications.show(id, title, body, details);
   }
 
-  // إضافة كلمة مفتاحية جديدة
   void addKeyword(String keyword) {
     if (!keywords.contains(keyword)) {
       keywords.add(keyword);
-      bleService.sendKeyword(keyword); // أرسل للـ ESP32 أيضاً
+      bleService.sendKeyword(keyword);
       notifyListeners();
     }
   }
 
-  // حذف كلمة مفتاحية
   void removeKeyword(String keyword) {
     keywords.remove(keyword);
     notifyListeners();
