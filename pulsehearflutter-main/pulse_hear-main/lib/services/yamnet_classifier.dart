@@ -45,19 +45,8 @@ class YamnetClassifier {
 
   Future<void> init() async {
     // تحميل المودل
-    final gpuDelegateV2 = GpuDelegateV2(
-      options: GpuDelegateOptionsV2(
-        allowPrecisionLoss: true,
-        inferencePriority1: TfLiteInferencePriority.min,
-        inferencePriority2: TfLiteInferencePriority.min,
-        inferencePriority3: TfLiteInferencePriority.min,
-        inferencePriority4: TfLiteInferencePriority.min,
-      ),
-    );
-
-    final options = InterpreterOptions()
-      ..addDelegate(gpuDelegateV2);
-
+    // تحميل المودل
+    final options = InterpreterOptions();
     _interpreter = await Interpreter.fromAsset(_modelPath, options: options);
     print('[YAMNet] Model loaded successfully');
   }
