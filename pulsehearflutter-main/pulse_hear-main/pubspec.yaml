@@ -4,8 +4,7 @@ publish_to: 'none'
 version: 0.1.0
 
 environment:
-  sdk: ^3.10.8
-  flutter: ">=3.10.0"
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -18,7 +17,7 @@ dependencies:
   flutter_local_notifications: ^17.2.2
   record: ^5.1.2
   permission_handler: ^11.3.1
-    speech_to_text: ^6.6.0
+  speech_to_text: ^6.6.0
 
 dev_dependencies:
   flutter_test:
@@ -38,4 +37,3 @@ flutter:
       fonts:
         - asset: assets/fonts/Nunito-VariableFont_wght.ttf
         - asset: assets/fonts/Nunito-Italic-VariableFont_wght.ttf
-
