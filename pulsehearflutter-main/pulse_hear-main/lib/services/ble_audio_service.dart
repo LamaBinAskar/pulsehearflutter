@@ -33,8 +33,16 @@ class BleAudioService extends ChangeNotifier {
     'fire',
   ];
 
-  BleAudioService({required this.bleService}) {
-    _init();
+    BleAudioService({required this.bleService}) {
+          _init();
+  }
+
+  // Getters for dashboard_screen.dart compatibility
+  bool get isConnected => bleService.isConnected;
+  String get deviceName => bleService.deviceName;
+  Future<void> connectToESP32(String name) async {
+    await bleService.startScan();
+    notifyListeners();
   }
 
   Future<void> _init() async {
