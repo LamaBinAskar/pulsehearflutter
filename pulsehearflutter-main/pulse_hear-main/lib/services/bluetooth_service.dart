@@ -80,8 +80,8 @@ class BluetoothService extends ChangeNotifier {
   Future<void> _discoverServices() async {
     if (_device == null) return;
     try {
-      List<BluetoothService2> services = await _device!.discoverServices();
-      for (BluetoothService2 service in services) {
+      List<BluetoothService> services = await _device!.discoverServices();
+      for (BluetoothService service in services) {
         if (service.uuid.toString().toLowerCase() == SERVICE_UUID.toLowerCase()) {
           for (BluetoothCharacteristic char in service.characteristics) {
             String charUuid = char.uuid.toString().toLowerCase();
@@ -194,10 +194,3 @@ class BluetoothService extends ChangeNotifier {
   }
 }
 
-// alias لتجنب conflict مع flutter bluetooth
-typedef BluetoothService2 = BluetoothService_;
-class BluetoothService_ {
-  final String uuid;
-  final List<BluetoothCharacteristic> characteristics;
-  BluetoothService_({required this.uuid, required this.characteristics});
-}
